@@ -3,7 +3,8 @@ package Regexp::CorpusHandler::Action::ResultsModifierI;
 use strict;
 use Scalar::Util qw(weaken);
 # use Regexp::CorpusHandler::Action::ActionI;
-use base qw(Regexp::CorpusHandler::Action::ActionI);
+use base qw( Regexp::CorpusHandler::Action::ActionI
+             Regexp::CorpusHandler::Sourced);
 
 sub new {
     my $class = shift;
@@ -96,70 +97,6 @@ sub results {
 sub condition {
     my $self = shift;
     return undef;
-}
-
-sub source {
-    my $self = shift;
-    if (my $req = shift) {
-        my $okSrc;
-        if ($req =~ /^(\*|\$_)$/) {
-            $self->{SOURCE} = '*';
-        } else {
-            my @srcs;
-            my $hack = $req;
-            my $hand = $self->handler();
-            while (my $rk = $self->parse_resultAndKey( $hack )) {
-                my ($key, $resName, $rep) = @{$rk};
-                $resName ||= $hand->current_results_name();
-
-                # I had considered keeping the results a string, the
-                # idea being to allow recursive expansion of the
-                # string based on current results values. While
-                # thinking about how to implement this, it seemed both
-                # a nightmare and stupid. So the source is fixed at
-                # 'compile time' when the Action is defined.
-
-                my $res = $hand->results($resName);
-                push @srcs, [$res, $key];
-                $hack =~ s/\Q$rep\E/ /g;
-            }
-            if ($#srcs != -1) {
-                $okSrc = \@srcs;
-                unless ($hack =~ /^\s*$/) {
-                    $self->msg("[?]","Leftover unrecognized text while parsing source", "Provided: '$req'", "Leftover: '$hack'");
-                }
-            }
-        }
-        if ($okSrc) {
-            $self->{SOURCE} = $okSrc;
-        } else {
-            $self->msg("[?]",$self->to_one_line(),
-                       "Failed to set the source to '$req'",
-                       "Use either '*' (the main corpus) or a Key specifier (eg 'SomeResultsName::SomeKeyName')");
-        }
-    }
-    return $self->{SOURCE};
-}
-
-sub working_source {
-    my $self = shift;
-    my $src  = $self->source();
-    my $hand = $self->handler();
-    if (ref($src)) {
-        # One or more result keys
-        my @vals;
-        foreach my $rk (@{$src}) {
-            my ($res, $key) = @{$rk};
-            my $val = $res->value( $key );
-            # Any merit in including empty strings?
-            push @vals, $val unless ($val eq '');
-        }
-        return join("\n", @vals) || "";
-    } elsif ($src eq '*') {
-        # The main Corpus text
-        return $hand->text();
-    }
-    return "";
 }
 
 sub run_immediately { return 0; }
